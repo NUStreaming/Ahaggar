@@ -6,7 +6,7 @@ const puppeteer = require("puppeteer-core");
 // const tcNetworkPatterns = require("./tc-network-patterns.js");
 const clientProfile = require(process.env.npm_package_config_client_profile);
 
-const {QoeEvaluator, QoeInfo} = require("../dash.js/samples/cmsd-dash/abr/LoLp_QoEEvaluation.js");
+const {QoeEvaluator, QoeInfo} = require("../dash.js-4.2.1/samples/cmsd-dash/abr/LoLp_QoEEvaluation.js");
 
 // To run bash commands
 const exec = require('child_process').exec
