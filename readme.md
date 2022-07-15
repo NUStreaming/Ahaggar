@@ -67,5 +67,5 @@ There are three main components in this setup and they correspond to the three m
 
 ### Other Useful Commands
 
-- Verify network shaping: Use `iperf3` tool to test bandwidth. Eg. run `iperf3 -s` on the server and `iperf3 -c localhost -R` on the client to measure bandwidth from server to client.
+- Verify network shaping: Use `iperf3` tool to test bandwidth. Eg. run `iperf3 -s` on the server and `iperf3 -c <hostname> -R` on the client (hostname: `localhost` or `host.docker.internal` if you are running from docker container) to measure bandwidth from server to client.
 - Access docker container: Run `docker ps` to retrieve container_id then `docker -exec -it <container_id> /bin/bash` to access.
