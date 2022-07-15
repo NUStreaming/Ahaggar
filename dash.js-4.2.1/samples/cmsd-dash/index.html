@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>CMSD-DASH v4.2.1</title>
+
+    <script src="../../dist/dash.all.debug.js"></script>
+
+    <script src="abr/AhaggarRule.js" class="code"></script>
+    
+    <script src="js/abr/FastMPCRule.js"></script>
+
+    <!-- <script src="js/lib/tf.min.js"></script> -->
+    <!-- <script src="js/abr/save-pensieve.js"></script> -->
+    <script src="js/abr/PensieveRule.js"></script>
+
+    <script class="code">
+        var player;
+        var ruleUsed = '';
+        var device;
+        // var lowLatencyEnabled = '';
+
+        const UUIDGeneratorBrowser = () =>
+            ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+                (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+        );
+        const mysid = UUIDGeneratorBrowser();
+
+        function getQueryParams() {
+            var vars = {};
+            var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi,  
+                function(m,key,value) {
+                    vars[key] = value;
+                });
+            return vars;
+        }
+    
+        function init() {
+            var video,
+                // url = "http://localhost:8082/media/vod/bbb_30fps_akamai/bbb_30fps.mpd",
+                // url = "http://localhost:8082/media/vod/sports/manifest.mpd",  // all other abr (w/o cmsd)
+                // url = "http://localhost:8082/cmsd-express/pensieve/media/vod/sports/manifest.mpd",  // abrPensieve (via cmsd)
+                url = "http://localhost:8082/cmsd-express/bitrateGuidance/media/vod/sports/manifest.mpd",  // abrAhaggar (via cmsd)
+                // url = "http://localhost:8082/cmsd-express/bitrateGuidance/media/vod/document/manifest.mpd",
+                // url = "http://localhost:8082/cmsd-express/bitrateGuidance/media/vod/game/manifest.mpd",
+                // url = "http://localhost:8082/cmsd-express/bitrateGuidance/media/vod/movie/manifest.mpd",
+                // url = "http://localhost:8082/cmsd-express/bitrateGuidance/media/vod/nature/manifest.mpd",
+                version,
+                httpParams=getQueryParams();
+            
+            // default values; can be set in httpParams of url
+            var minBuffer=4,
+                maxBuffer=8,
+                // abrStrategyInput="abrThroughput";
+                abrStrategyInput="abrAhaggar";
+                // abrStrategyInput="abrFastMPC";
+                // abrStrategyInput="abrPensieve";
+
+            // for AhaggarRule
+            device="hdtv";
+            // device="uhdtv";
+            // device="phone";
+            
+            // if the vales came with query string override default ones
+            if ("videoUrl" in httpParams){
+                url = httpParams["videoUrl"];
+                url=decodeURIComponent(url);
+                console.log("parsed url from query string: "+url);
+            }
+            if ("minBuffer" in httpParams){
+                minBuffer=httpParams["minBuffer"];
+                console.log("parsed minBuffer from query string: "+minBuffer);
+            }
+            if ("maxBuffer" in httpParams){
+                maxBuffer=httpParams["maxBuffer"];
+                console.log("parsed maxBuffer from query string: "+maxBuffer);
+            }
+            if ("abrStrategyInput" in httpParams){
+                abrStrategyInput=httpParams["abrStrategyInput"];
+                console.log("parsed abrStrategyInput from query string: "+abrStrategyInput);
+            }
+
+            player = dashjs.MediaPlayer().create();
+            video = document.querySelector("video");
+            player.initialize(); 
+            version = player.getVersion();
+
+            player.updateSettings({
+                streaming: {
+                    cmcd: {
+                        enabled: true, /* enable reporting of cmcd parameters */
+                        // sid: 'b248658d-1d1a-4039-91d0-8c08ba597da5', /* session id send with each request */
+                        sid: mysid,
+                        cid: '21cf726cfe3d937b5f974f72bb5bd06a', /* content id send with each request */
+                        did: 'dash.js-v' + version /* device id send with each request */
+                    }
+                }
+            });
+
+            // CMSD-DASH-2 ADDITION //
+            if (abrStrategyInput == 'abrAhaggar') {
+                player.updateSettings({
+                    streaming: {
+                        abr: {
+                            useDefaultABRRules: false   // also turns off secondary rules
+                        }
+                    }
+                });
+                player.addABRCustomRule('qualitySwitchRules', 'AhaggarRule', AhaggarRule);
+                ruleUsed = 'AhaggarRule';
+            }
+            else if (abrStrategyInput == 'abrThroughput' || abrStrategyInput == 'abrDynamic' || abrStrategyInput == 'abrBola') {
+                player.updateSettings({
+                    streaming: {
+                        abr: {
+                            useDefaultABRRules: true,
+                            ABRStrategy: abrStrategyInput,
+                            additionalAbrRules: {
+                                insufficientBufferRule: false,
+                                switchHistoryRule: false,
+                                droppedFramesRule: false,
+                                abandonRequestsRule: false
+                            }
+                        }
+                    }
+                });
+                ruleUsed = player.getSettings().streaming.abr.ABRStrategy;
+            }
+            else if (abrStrategyInput == 'abrFastMPC') {
+                player.updateSettings({
+                    streaming: {
+                        abr: {
+                            useDefaultABRRules: false   // also turns off secondary rules
+                        }
+                    }
+                });
+	            player.addABRCustomRule('qualitySwitchRules', 'FastMPCRule', FastMPCRule);
+                ruleUsed = 'FastMPCRule';
+            }
+            else if (abrStrategyInput == 'abrPensieve') {
+                player.updateSettings({
+                    streaming: {
+                        abr: {
+                            useDefaultABRRules: false   // also turns off secondary rules
+                        }
+                    }
+                });
+	            player.addABRCustomRule('qualitySwitchRules', 'PensieveRule', PensieveRule);
+                ruleUsed = 'PensieveRule';
+            }
+
+            // CMSD-DASH-2 ADDITION //
+            if ("device" in httpParams && httpParams["device"] != "undefined") {
+                device = httpParams["device"];
+                console.log("parsed device from query string: " + device);
+            }
+            player.getSettings().streaming.cmcd.ahaggar_device = device;
+            console.log('Updated ahaggar_device with value: ' + device);
+
+            player.updateSettings({
+                streaming: {
+                    buffer: {
+                        bufferToKeep: maxBuffer,
+                        bufferTimeAtTopQuality: maxBuffer,
+                        bufferTimeAtTopQualityLongForm: maxBuffer,
+                        stableBufferTime: maxBuffer,
+                        bufferPruningInterval: minBuffer // seg duration
+                    }
+                }
+            });
+
+            /* player.setAutoPlay(false); */
+            player.attachView(video);
+            player.attachSource(url);
+
+            // ruleUsed = player.getSettings().streaming.abr.ABRStrategy;
+            // lowlatencyEnabled = player.getSettings().streaming.lowLatencyEnabled;
+
+            return player;
+        }
+    </script>
+
+    <style>
+        .video-wrapper {
+            display: flex;
+            flex-flow: row wrap;
+        }
+
+        .video-wrapper > div:nth-child(2) {
+            margin-left: 25px;
+        }
+
+        video {
+            width: 640px;
+            height: 360px;
+        }
+
+        ul {
+            margin: 0;
+        }
+
+        input {
+            width: 5em;
+            border: 1px solid gray;
+            padding: 0 4px 0 8px;
+        }
+
+        .help-container {
+            display: flex;
+            flex-flow: row wrap;
+            margin-top: 1em;
+            align-content: center;
+            background: white;
+            border: solid 1px #ddd;
+            padding: 0.5em;
+        }
+
+        .help-container > div {
+            width: 33.3%;
+            padding: 1em;
+            box-sizing: border-box;
+        }
+
+        .help-container h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="video-wrapper">
+        <video controls="true" autoplay muted></video>
+        <div>
+            <fieldset>
+                <legend>Current values</legend>
+                <ul>
+                    <li>Latency: <span id="latency-tag"></span></li>
+                    <!-- <li>Min. drift: <span id="mindrift-tag"></span></li> -->
+                    <li>Playback rate: <span id="playbackrate-tag"></span></li>
+                    <li>Buffer: <b><span id="buffer-tag"></span></b></li>
+                    <li>Quality: <b><span id="quality-tag"></span></b></li>
+                    <li>Measured throughput: <b><span id="tput-tag"></span></b></li>
+                    <li>Rule used: <b><span id="rule-used-tag"></span></b></li>
+                    <!-- <li>LL enabled: <b><span id="ll-enabled-tag"></span></b></li> -->
+                </ul>
+                <div id="stats"></div>
+            </fieldset>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const player = init();
+        const video = document.querySelector("video")
+        let stallingAt = null;
+        let stallStartVideoTime = null;
+
+        // Additional variables for QoeEvaluator in run.js
+        let prevStallDurationMs = null;
+
+        const CMA = () => {
+            let average = 0;
+            let count = 0;
+
+            return {
+                average(val) {
+                    if (isNaN(val)) {
+                        return 0;
+                    }
+                    average = average + ((val - average) / ++count);
+                    return average;
+                },
+            }
+        }
+
+        setInterval(function() {
+            var dashMetrics = player.getDashMetrics();
+            var settings = player.getSettings();
+
+            var currentLatency = parseFloat(player.getCurrentLiveLatency(), 10);
+            document.getElementById("latency-tag").innerHTML = currentLatency + " secs";
+
+            var measuredThroughput = Math.round(player.getAverageThroughput("video"));
+            document.getElementById("tput-tag").innerHTML = measuredThroughput + " Kbps";
+
+            // document.getElementById("mindrift-tag").innerHTML = settings.streaming.liveCatchUpMinDrift + " secs";
+
+            var currentPlaybackRate = player.getPlaybackRate();
+            document.getElementById("playbackrate-tag").innerHTML = Math.round(currentPlaybackRate * 100) / 100;
+
+            var currentBuffer = dashMetrics.getCurrentBufferLevel("video");
+            document.getElementById("buffer-tag").innerHTML = currentBuffer + " secs";
+
+            document.querySelector('#rule-used-tag').innerText = ruleUsed;
+            // document.querySelector('#ll-enabled-tag').innerText = lowLatencyEnabled;
+        }, 200);
+
+        player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_REQUESTED, (e) => {
+            console.warn('Quality changed requested', e);
+        });
+
+        player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, (e) => {
+            console.warn('Quality changed', e);
+            const quality = player.getBitrateInfoListFor('video')[e.newQuality];
+            if (!quality) {
+                return;
+            }
+            document.querySelector('#quality-tag').innerText = `${quality.width}x${quality.height}, ${quality.bitrate / 1000}Kbps`;
+        });
+
+        
+        player.on(dashjs.MediaPlayer.events.FRAGMENT_LOADING_COMPLETED, (e) => { 
+            console.warn('Fragment loading completed', e);
+
+            const adaptation = player.getDashAdapter().getRealAdaptation(e.request.mediaInfo.streamInfo, e.request.mediaInfo);
+            let segmentQualityIndex = e.request.quality;
+            let segmentIndex = e.request.index;
+            if (!isNaN(segmentQualityIndex) && !isNaN(segmentIndex)) {
+                console.log("segmentQualityIndex: ", segmentQualityIndex);
+                console.log("segmentIndex: ", segmentIndex);
+                console.log(adaptation);
+                // console.log(adaptation.Representation[segmentQualityIndex].SegmentList.SegmentURL[segmentIndex]);
+            }
+
+            var headers = parseResponseHeaders(e.request.responseHeaders);
+            if ('cmsd-dynamic' in headers && headers['cmsd-dynamic'].split('=')[0] == 'com.example-brg') {
+                var value = parseInt(headers['cmsd-dynamic'].split('=')[1]);
+                player.getSettings().streaming.cmcd.ahaggar_brg = value;
+                console.log('Updated ahaggar_brg with value: ' + value);
+            }
+            if ('cmsd-dynamic' in headers && headers['cmsd-dynamic'].split('=')[0] == 'com.example-pbrg') { // pensieve
+                var value = parseInt(headers['cmsd-dynamic'].split('=')[1]);
+                player.getSettings().streaming.cmcd.pensieve_brg = value;
+                console.log('Updated pensieve_brg with value: ' + value);
+            }
+
+            console.warn('player.getSettings().streaming: ', player.getSettings().streaming);
+        });
+
+        window.startRecording = () => {
+            console.info('Begin recording');
+
+            const latencyCMA = CMA();
+            const bufferCMA = CMA();
+            
+            // Final results obj to be returned to run.js
+            window.abrHistory = {
+                byDownload: {},     // takes `currentMetrics` obj (snapshot @ each segment download - also snapshots `history` obj)
+                overall: {},        // takes `history` obj (cumulative @ the end)
+                abrStrategy: '',
+                sid: '',
+                customPlaybackControl: null,
+                misc: {}
+            };
+
+            // window.abrHistory.overall metrics
+            // const history = window.abrHistory = {
+            const history = {
+                switchHistory: [],
+                // switchRequests: [],
+                stallDurationMs: 0,
+                numStalls: 0,
+                stallHistoryRealTime: [],
+                stallHistoryVideoTime: [],
+                // delayDurationS: -1,
+                averageLatency: -1,
+                averageBufferLength: -1,
+                currentLatency: -1,
+                currentBufferLength: -1
+            };
+
+            // Record the abrStrategy and if customPlaybackControl was used
+            window.abrHistory.abrStrategy = ruleUsed;
+            window.abrHistory.sid = mysid;
+
+            // Record the initial quality
+            recordSwitch(player.getBitrateInfoListFor('video')[player.getQualityFor('video')]);
+
+            let pollInterval = -1;
+            window.stopRecording = () => {
+                clearInterval(pollInterval);
+                checkStallResolution();
+                const lastQuality = history.switchHistory[history.switchHistory.length - 1];
+                if (lastQuality.end === null) {
+                    lastQuality.end = video.currentTime;
+                }
+                console.warn('Run ended. Please navigate back to node for results.');
+            }
+
+            pollInterval = setInterval(function() {
+                const currentLatency = parseFloat(player.getCurrentLiveLatency(), 10);
+                const currentBuffer = player.getDashMetrics().getCurrentBufferLevel("video");
+                history.averageLatency = latencyCMA.average(currentLatency);
+                history.averageBufferLength = bufferCMA.average(currentBuffer);
+                // console.log(history);
+            }, 200);
+
+            ////////////////////////////////////////////////////////////////////////////////
+            // Add logging on segment download (instead of polling-based)
+            ////////////////////////////////////////////////////////////////////////////////
+            player.on(dashjs.MediaPlayer.events.FRAGMENT_LOADING_COMPLETED, (e) => { 
+                // Add info for QoeEvaluator in run.js
+                if (!window.abrHistory.misc.segmentDurationSec)
+                    window.abrHistory.misc.segmentDurationSec = e.request.duration; 
+                if (!window.abrHistory.misc.minBitrateKbps)
+                    window.abrHistory.misc.minBitrateKbps = e.request.mediaInfo.bitrateList[0].bandwidth / 1000.0;
+                if (!window.abrHistory.misc.maxBitrateKbps)
+                    window.abrHistory.misc.maxBitrateKbps = e.request.mediaInfo.bitrateList[e.request.mediaInfo.bitrateList.length - 1].bandwidth / 1000.0;
+
+                const currentLatency = parseFloat(player.getCurrentLiveLatency(), 10);
+                const currentBuffer = player.getDashMetrics().getCurrentBufferLevel("video");
+                history.averageLatency = latencyCMA.average(currentLatency);
+                history.averageBufferLength = bufferCMA.average(currentBuffer);
+
+                // console.log('[client] currentLatency: ' + currentLatency);
+                // console.log('[client] currentBuffer: ' + currentBuffer);
+                
+                history.currentLatency = currentLatency;
+                history.currentBufferLength = currentBuffer;
+                
+                // var headers = parseResponseHeaders(e.request.responseHeaders);
+                // if ('cmsd-dynamic' in headers && headers['cmsd-dynamic'].split('=')[0] == 'com.example-dl') {
+                //     history.delayDurationS = parseInt(headers['cmsd-dynamic'].split('=')[1]);
+                // }
+
+                // get segment key e.g. 'chunk-stream0-00010'
+                let urlParsed = e.request.url.split('/');
+                let segmentKey = urlParsed[urlParsed.length - 1].split('.')[0];
+
+                // console.log('');
+                console.log('>>> FRAGMENT_LOADING_COMPLETED: ' + segmentKey);
+                console.log(e);
+                // console.log(history);
+                // console.log(e.request);
+
+                // update each segment's metrics value with the current cumulative metrics
+                let currentMetrics = {};
+                // have to pass the values and not object over, otherwise the values will be updated incorrectly later (cause pass by reference?)..
+                for (let key in history) {
+                    if (history.hasOwnProperty(key)) { 
+                        // // skip adding switchRequests to each segment's metrics for better readability of result file 
+                        // if (key === 'switchRequests') continue;
+
+                        if (!Array.isArray(history[key])) {
+                            currentMetrics[key] = history[key];
+                        } else {
+                            // for array of objects i.e. switchHistory and switchRequests
+                            currentMetrics[key] = [];
+                            for (let i = 0; i < history[key].length; i++) {
+                                currentMetrics[key][i] = {};
+                                for (let key2 in history[key][i]) {
+                                    if (history[key][i].hasOwnProperty(key2))   currentMetrics[key][i][key2] = history[key][i][key2];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // get and add throughput info
+                const streamInfo = player.getActiveStream().getStreamInfo();
+                const isDynamic = streamInfo && streamInfo.manifestInfo ? streamInfo.manifestInfo.isDynamic : null;
+                var throughput;
+                if (typeof player.getSafeAverageThroughput === "function") { 
+                    throughput = Math.round(player.getSafeAverageThroughput('video', isDynamic));
+                } else {
+                    throughput = Math.round(player.getAverageThroughput('video'));
+                }
+                currentMetrics.throughputKbps = throughput;
+                currentMetrics.throughputTimestampMs = Date.now();
+                // console.log('-- player.getSafeAverageThroughput(): ' + throughput + 'kbps');
+
+                // add current time
+                // currentMetrics.currentTimeAbsolute = Math.floor(Date.now() / 1000);
+                currentMetrics.currentTimeAbsolute = Date.now() / 1000;    // retain milliseconds
+                currentMetrics.currentTimeRelative = video.currentTime;
+
+                // add additional info for QoeEvaluator
+                currentMetrics.segmentBitrateKbps = e.request.mediaInfo.bitrateList[e.request.quality].bandwidth / 1000.0;
+                currentMetrics.playbackSpeed = player.getPlaybackRate();
+                if (prevStallDurationMs && currentMetrics.stallDurationMs) {
+                    currentMetrics.segmentStallDurationMs = currentMetrics.stallDurationMs - prevStallDurationMs;
+                } else {
+                    currentMetrics.segmentStallDurationMs = 0; // i.e. omit stallDuration data for first segment only because unable to calc difference
+                }
+                prevStallDurationMs = currentMetrics.stallDurationMs;
+
+                // add other request/response-related info
+                currentMetrics.requestInfo = {
+                    url: e.request.url,
+                    startTime: e.request.startTime,
+                    requestStartDate: formatTimeString(e.request.requestStartDate),
+                    firstByteDate: formatTimeString(e.request.firstByteDate),
+                    requestEndDate: formatTimeString(e.request.requestEndDate),
+                    availabilityStartTime: formatTimeString(e.request.availabilityStartTime),
+                    wallStartTime: formatTimeString(e.request.wallStartTime),
+                    bytesLoaded: e.request.bytesLoaded,
+                    bytesTotal: e.request.bytesTotal,
+                    delayLoadingTime: e.request.delayLoadingTime,
+                    responseHeaders: e.request.responseHeaders
+                };
+
+                // add metrics for Ahaggar (CMSD-DASH-2)
+                currentMetrics.device = device;
+                const adaptation = player.getDashAdapter().getRealAdaptation(e.request.mediaInfo.streamInfo, e.request.mediaInfo);
+                let segmentQualityIndex = e.request.quality;
+                let segmentIndex = e.request.index;
+                if (!isNaN(segmentQualityIndex) && !isNaN(segmentIndex)) {
+                    currentMetrics.segmentBitrateBytes = adaptation.Representation[segmentQualityIndex].SegmentList.SegmentURL[segmentIndex].bitrate;
+                    currentMetrics.vmaf = adaptation.Representation[segmentQualityIndex].SegmentList.SegmentURL[segmentIndex][device];
+                    currentMetrics.qualityIndex = segmentQualityIndex;
+                    currentMetrics.frameRate = adaptation.Representation[segmentQualityIndex].frameRate;
+                    currentMetrics.height = adaptation.Representation[segmentQualityIndex].height;
+                    currentMetrics.width = adaptation.Representation[segmentQualityIndex].width;
+                    currentMetrics.duration = e.request.duration;
+                    currentMetrics.mediaStartTime = e.request.mediaStartTime;
+                    currentMetrics.codec = adaptation.Representation[segmentQualityIndex].codecs;
+                }
+
+
+                window.abrHistory.byDownload[segmentKey] = currentMetrics;
+
+                // constantly update overall metrics value with the latest cumulative metrics
+                window.abrHistory.overall = history;
+                // if (!isPuppeteer) {
+                //     qoeEvaluatorUi.logSegmentMetrics(currentMetrics.segmentBitrateKbps, 
+                //                                 currentMetrics.segmentStallDurationMs/1000, 
+                //                                 currentLatency, currentMetrics.playbackSpeed);
+                // }
+            });
+
+            function formatTimeString(date) {
+                if (date instanceof Date) {
+                    let str = '';
+
+                    if (date.getHours() > 9)    str += date.getHours();
+                    else                        str += ('0' + date.getHours());
+                    str += ':';
+                    if (date.getMinutes() > 9)  str += date.getMinutes();
+                    else                        str += ('0' + date.getMinutes());
+                    str += ':';
+                    if (date.getSeconds() > 9)  str += date.getSeconds();
+                    else                        str += ('0' + date.getSeconds());
+                    str += ('.' + date.getMilliseconds());
+
+                    return str;
+                }
+                else return date;
+            }
+
+            // player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_REQUESTED, (e) => {
+            //     recordSwitchRequest(player.getBitrateInfoListFor('video')[e.newQuality]);
+            // });
+
+            player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, (e) => {
+                recordSwitch(player.getBitrateInfoListFor('video')[e.newQuality]);
+            });
+
+            video.addEventListener('waiting', (e) => {
+                stallingAt = performance.now();
+                stallStartVideoTime = video.currentTime;
+                console.log(`... [stall start] stallingAt: ${stallingAt}`);
+                console.log(`... [stall start] stallStartVideoTime: ${stallStartVideoTime}`);
+            });
+
+            video.addEventListener('timeupdate', () => {
+                // To fix issue with instantaneous `timeupdate` after `waiting` event
+                if ((video.currentTime - stallStartVideoTime) > 0.05) {
+                    checkStallResolution();
+                }
+            });
+
+            function recordSwitch(quality) {
+                if (!quality) {
+                    return;
+                }
+                const switchHistory = history.switchHistory;
+                const prev = switchHistory[switchHistory.length - 1];
+                const videoNow = video.currentTime;
+                if (prev) {
+                    prev.end = videoNow;
+                }
+                switchHistory.push({ start: videoNow, end: null, quality });
+            }
+
+            // function recordSwitchRequest(quality) {
+            //     if (!quality) {
+            //         return;
+            //     }
+            //     const switchRequests = history.switchRequests;
+            //     // let timeAbsolute = Math.floor(Date.now() / 1000);
+            //     let timeAbsolute = Date.now() / 1000;   // retain milliseconds
+            //     let timeRelative = video.currentTime;
+            //     switchRequests.push({ timeAbsolute: timeAbsolute, timeRelative: timeRelative, quality });
+            // }
+
+            function checkStallResolution() {
+                if (stallingAt !== null) {
+                    let stallingEnd = performance.now();
+                    let duration = (stallingEnd - stallingAt);
+                    history.stallDurationMs += duration;
+                    history.numStalls += 1;
+                    // history.stallHistoryRealTime.push([stallingAt, stallingEnd]);
+                    history.stallHistoryRealTime.push({"start": stallingAt, "end": stallingEnd});
+
+                    let stallEndVideoTime = video.currentTime;
+                    // history.stallHistoryVideoTime.push([stallStartVideoTime, stallEndVideoTime]);
+                    history.stallHistoryVideoTime.push({"start": stallStartVideoTime, "end": stallEndVideoTime});
+                    
+                    console.log(`... [stall end] duration (ms): ${duration}`);
+                    console.log(`... [stall end] stallingEnd: ${stallingEnd}`);
+                    console.log(`... [stall end] stallEndVideoTime: ${stallEndVideoTime}`);
+                    
+                    stallingAt = null;
+                    stallStartVideoTime = null;
+                }
+            }
+        }
+
+        function parseResponseHeaders(headerStr) {
+            let headers = {};
+            if (!headerStr) {
+                return headers;
+            }
+
+            // Trim headerStr to fix a MS Edge bug with xhr.getAllResponseHeaders method
+            // which send a string starting with a "\n" character
+            let headerPairs = headerStr.trim().split('\u000d\u000a');
+            for (let i = 0, ilen = headerPairs.length; i < ilen; i++) {
+                let headerPair = headerPairs[i];
+                let index = headerPair.indexOf('\u003a\u0020');
+                if (index > 0) {
+                    headers[headerPair.substring(0, index)] = headerPair.substring(index + 2);
+                }
+            }
+            return headers;
+        }
+    });
+</script>
+<script src="../highlighter.js"></script>
+</body>
+</html>

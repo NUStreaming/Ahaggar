@@ -1,0 +1,6 @@
+rate	10mbit
+wait 5s
+rate	20mbit
+wait 5s
+rate	10mbit
+wait 5s
