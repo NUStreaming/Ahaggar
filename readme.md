@@ -1,6 +1,9 @@
-# CMSD-DASH
+# Ahaggar Video Streaming System for HAS Services
 
-CMSD-enabled dash.js + Node.js prototype for paper titled: "___TBC___" as submitted to ___TBC___. 
+CMCD/CMSD-enabled dash.js + Node.js prototype for paper titled: "___Meta Reinforcement Learning for Rate Adaptation___" as submitted to ___TBC___. 
+
+# Appendix
+
 
 
 ## Setup and Testing
