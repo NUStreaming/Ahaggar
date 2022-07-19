@@ -1,7 +1,10 @@
-# CMSD-DASH
+# Ahaggar Video Streaming System for HAS Services
 
-CMSD-enabled dash.js + Node.js prototype for paper titled: "___TBC___" as submitted to ___TBC___. 
+CMCD/CMSD-enabled dash.js + Node.js prototype for paper titled: "___Meta Reinforcement Learning for Rate Adaptation___" as submitted to ___IEEE INFOCOM'23___. 
 
+# Appendix [To Read]
+
+"___Appendix_Ahagger.pdf___" contains Appendix materials of our paper including PPO Chief and Workers algorithms, network traces characteristics, and video dataset characteristics.
 
 ## Setup and Testing
 
