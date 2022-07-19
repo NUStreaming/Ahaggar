@@ -4,23 +4,11 @@ import os
 import sys
 import subprocess
 
-# path_to_network_run = "results_v3.2/5GLumous"
-# path_to_network_run = "results_v3.2/4GLumous"
-# path_to_network_run = "results_v3.2/4GNYU"
-# path_to_network_run = "results_v3.2/4GBelgium"
-# list_of_abrs = ["abrAhaggar", "abrThroughput", "abrDynamic", "abrBola", "abrFastMPC", "abrPensieve"]
+path_to_results_folder = "results_verify_v3.2/"
+list_of_abrs = ["abrAhaggar", "abrThroughput", "abrDynamic", "abrBola", "abrFastMPC", "abrPensieve"]
 
-# path_to_network_run = "results_v3.4a/5GLumous"
-# path_to_network_run = "results_v3.4a/4GLumous"
-# path_to_network_run = "results_v3.4a/4GNYU"
-# path_to_network_run = "results_v3.4a/4GBelgium"
-# list_of_abrs = ["abrAhaggarUHDTV6", "abrAhaggarHDTV6", "abrAhaggarUHDTV3_abrDynamic3", "abrAhaggarHDTV3_abrDynamic3", "abrDynamic6"]
-
-# path_to_results_folder = "results_v4.1/"
-# list_of_abrs = ["abrAhaggar", "abrThroughput", "abrDynamic", "abrBola", "abrFastMPC", "abrPensieve"]
-
-path_to_results_folder = "results_v4.1_split_by_device/"
-list_of_abrs = ["abrAhaggar_hdtv", "abrAhaggar_uhdtv", "abrAhaggar_phone"]
+# path_to_results_folder = "results_v4.1_split_by_device/"
+# list_of_abrs = ["abrAhaggar_hdtv", "abrAhaggar_uhdtv", "abrAhaggar_phone"]
 
 # path_to_results_folder = "results_v3.4b/"
 # list_of_abrs = ["abrAhaggarUHDTV6", "abrAhaggarHDTV6", "abrAhaggarUHDTV3_abrDynamic3", "abrAhaggarHDTV3_abrDynamic3", "abrDynamic6"]
